@@ -2,6 +2,6 @@
 
 ## Demonstrate improved security for sensitive data withnew support in Puppet Platform 6
 
-- Martin Brådalen
-- Per-Kristian K. Buer
-- Trond Håvard Thune
+- Martin Brådalen (github: eplejuice)
+- Per-Kristian K. Buer (github: CelebornBrian)
+- Trond Håvard Thune (github: trondhth)
