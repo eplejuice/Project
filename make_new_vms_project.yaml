@@ -16,18 +16,27 @@ parameters:
   name2:
     type: string
     description: name of second server
+  name3:
+    type: string
+    description: name of the third server
   image:
     type: string
     description: Name of image to use for first server
   image2:
    type: string 
    description: Name of the image to use for second server  
+  image3:
+   type: string 
+   description: Name of the image to use for third server
   flavor:
     type: string
     description: Flavor to use for first server
   flavor2:
     type: string
     description: Flavor to use for second server
+  flavor3:
+    type: string
+    description: Flavor to use for third server
   public_net:
     type: string
     description: >
@@ -53,6 +62,10 @@ parameters:
   security_name2:
     type: comma_delimited_list
     description: name of security group for server two
+  security_name3:
+    type: comma_delimited_list
+    description: name of security group for server three
+
 
 resources:
   private_net:
@@ -93,7 +106,7 @@ resources:
         - port: { get_resource: server1_port }
       user_data_format: RAW
       user_data:
-        get_file: ubuntu1_boot_script.bash
+        get_file: boot_script.sh
 
   server1_port:
     type: OS::Neutron::Port
@@ -113,14 +126,14 @@ resources:
     type: OS::Nova::Server
     properties:
       name: { get_param: name2 }
-      image: { get_param: image }
-      flavor: { get_param: flavor }
+      image: { get_param: image2 }
+      flavor: { get_param: flavor2 }
       key_name: { get_param: key_name }
       networks:
         - port: { get_resource: server2_port }
       user_data_format: RAW
       user_data:
-        get_file: ubuntu2_boot_script.bash
+        get_file: boot_script.sh
 
   server2_port:
     type: OS::Neutron::Port
@@ -136,6 +149,33 @@ resources:
       floating_network: { get_param: public_net }
       port_id: { get_resource: server2_port }
 
+  server3:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: name3 }
+      image: { get_param: image3 }
+      flavor: { get_param: flavor3 }
+      key_name: { get_param: key_name }
+      networks:
+        - port: { get_resource: server3_port }
+      user_data_format: RAW
+      user_data:
+        get_file: boot_script.sh
+
+  server3_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net }
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet }
+      security_groups: {get_param: security_name3 }
+
+  server3_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_net }
+      port_id: { get_resource: server3_port }
+
 outputs:
   server1_private_ip:
     description: IP address of server1 in private network
@@ -149,3 +189,9 @@ outputs:
   server2_public_ip:
     description: Floating IP address of server2 in public network
     value: { get_attr: [ server2_floating_ip, floating_ip_address ] }
+  server3_private_ip:
+    description: IP address of server3 in private network
+    value: { get_attr: [ server3, first_address ] }
+  server3_public_ip:
+    description: Floating IP address of server3 in public network
+    value: { get_attr: [ server3_floating_ip, floating_ip_address ] }

@@ -6,12 +6,18 @@ parameters:
   security_name2: 
     - linux
     - default
-  name1: Ubuntu1
-  name2: Ubuntu2
+  security_name3:
+    - linux
+    - default
+  name1: Puppet5
+  name2: Puppet6
+  name3: PuppetMaster
   image: Ubuntu Server 18.04 LTS (Bionic Beaver) amd64
   image2: Ubuntu Server 18.04 LTS (Bionic Beaver) amd64
+  image3: Ubuntu Server 18.04 LTS (Bionic Beaver) amd64
   flavor: m1.medium
   flavor2: m1.medium
+  flavor3: m1.medium
   public_net: ntnu-internal
   private_net_name: net1
   private_net_cidr: 192.168.100.0/24
