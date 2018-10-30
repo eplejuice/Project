@@ -32,4 +32,5 @@ source ~/.profile
 if [[ $hostname == 'puppetmaster' ]]
   then
    puppet module install puppet-cassandra --version 2.7.3
+   
 fi 
