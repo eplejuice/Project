@@ -1,4 +1,4 @@
-# Project in IMT3005 Infrastrtucture as Code 2018
+# Project in IMT3005 Infrastructure as Code 2018
 
 ## Demonstrate improved security for sensitive data with new support in Puppet Platform 6
 

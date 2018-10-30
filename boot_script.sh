@@ -26,11 +26,16 @@ else
   sudo apt-get install puppetserver -y
 fi
 
-sudo echo "PATH=$PATH:/opt/puppetlabs/bin/" | tee -a  ~/.profile
-source ~/.profile
+sudo echo "PATH=$PATH:/opt/puppetlabs/bin/" >>  /root/.bashrc
+source /root/.bashrc
 
 if [[ $hostname == 'puppetmaster' ]]
   then
    puppet module install puppet-cassandra --version 2.7.3
-   
-fi 
+fi
+
+if [[ $hostname == 'puppetmaster' ]]
+	then
+	sudo service puppetserver start
+	sudo iptables -I INPUT -m state --state NEW -m tcp -p tcp --dport 8140 -j ACCEPT
+fi
