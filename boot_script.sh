@@ -29,13 +29,12 @@ fi
 sudo echo "PATH=$PATH:/opt/puppetlabs/bin/" >>  /root/.bashrc
 source /root/.bashrc
 
-if [[ $hostname == 'puppetmaster' ]]
-  then
-   puppet module install puppet-cassandra --version 2.7.3
-fi
 
 if [[ $hostname == 'puppetmaster' ]]
 	then
 	sudo service puppetserver start
 	sudo iptables -I INPUT -m state --state NEW -m tcp -p tcp --dport 8140 -j ACCEPT
+	sudo apt install subversion
+        svn checkout https://github.com/eplejuice/Project/trunk/user
+        mv user/ /etc/puppetlabs/code/environments/production/modules
 fi
