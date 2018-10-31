@@ -2,9 +2,11 @@
 
 ## How to install
 On your PuppetMaster VM, do the following:
-`sudo apt install install subversion <br />
-svn checkout https://github.com/eplejuice/Project/trunk/user <br />
-mv user/ /etc/puppetlabs/code/environments/production/modules`
+<ul>
+<li>sudo apt install install subversion</li>
+<li>svn checkout https://github.com/eplejuice/Project/trunk/user</li>
+<li>mv user/ /etc/puppetlabs/code/environments/production/modules</li>
+</ul>
 
 Very simple, stupid module that is only for demonstration purposes.
 The module creates/ modifies linux users with a username and a password.
