@@ -4,9 +4,9 @@
 On your PuppetMaster VM, do the following:
 
 <ul>
-<li>`sudo apt install install subversion`</li>
-<li>`svn checkout https://github.com/eplejuice/Project/trunk/user`</li>
-<li>`mv user/ /etc/puppetlabs/code/environments/production/modules`</li>
+<li>sudo apt install install subversion</li>
+<li>svn checkout https://github.com/eplejuice/Project/trunk/user</li>
+<li>mv user/ /etc/puppetlabs/code/environments/production/modules</li>
 </ul>
 
 Very simple, stupid module that is only for demonstration purposes.
