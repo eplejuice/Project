@@ -1,0 +1,483 @@
+\usepackage{listings}
+
+\input{preamble.tex}
+
+\title{Demonstrate improved security for sensitive data with new support in Puppet Platform 6}
+\author{Martin Brådalen (473145), Trond Håvard Thune (473147), Per-Kristian K. Buer (480237)}
+
+\begin{document}
+
+\maketitle
+
+\abstract 
+When working with Puppet to automate configuration of a server, several clients or perhaps a server running a SQL database, one may encounter values such as tokens, password, ssh-keys or certificted. Values that generally should be kept secret and unavailable. However keeping a value hidden from threats, while having it available for your own infrastructure may be a bit of a challenge. In this report we look at some different ways to handle sensitive data in Puppet version 5 and 6. Passwords may be sent in plaintext when a compiled catalogue from the Puppet master is being sent to a Puppet agent.
+Puppet Platform 6 includes improved security for sensitive data such as this, like the puppet module Vault by HashiCorp, in which we will have a look at.
+%    What are we going to do?\\
+%    1) Demonstrate encrypted passwords in hiera in puppet6.\\
+%    2) Find out if security in puppet6 is the same as Powershell DSC (Desired State Configuration).
+
+%The abstract is of utmost
+%  importance, for it is read by 10 to 500 times more people than hear or
+%  read the entire article. It should not be a mere recital of the subjects
+%  covered. Expressions such as "is discussed" and "is described" should
+%  never be included! The abstract should be a condensation and
+%  concentration of the essential information in the paper.}
+
+\thispagestyle{empty}
+
+\clearpage
+\pagenumbering{roman}
+\setcounter{page}{1}
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+
+\section{Introduction}
+
+The Puppet language uses a wide variety of configuration files. These may include, but not limited to, files that manages applications, user accounts, DNS, etc. Most of the services which gets their configuration from configuration files, also includes security measures which are to be defined as 'sensitive data', like passwords. A password will usually be encrypted when stored in configuration files or as data (like in common.yaml). However, how does Puppet treat these encrypted passwords when compiling them into a catalogue and sending them over to the Puppet agents?
+\\\\
+In this paper, we will demonstrate that Puppet sends the encrypted password(s) in plaintext after having compiled a catalogue for the requesting Puppet agent. We will use a simple 'user' resource type for this. We will then look at how this can be improved (e.g. passwords being sent over encrypted, not in plaintext) using the new Deferred type that comes with the new Puppet Platform 6. We will try to integrate this function the module 'Vault' (HashiCorp), which stores sensitive data. 
+\\\\
+
+\section{Background technology}
+
+In this part we will describe some of the technology we use to demonstrate how sensitive data are stored securely on the puppet master with hiera-eyaml, we will have a look at how the defer-function that came with Puppet Platform 6 works, and we will talk a bit about the puppet module Vault, and while we wont go into detail, just to mention other earlier methods of handeling secrets: Git-crypt, Mozilla's SOPS, Transcrypt and Blackbox. These are different tools with the same idea: encrypted secrets in the git repo with asymmetric encryption. All these methods have simlar problems; the rotation process is fiddly, onboarding new team members is hard, it is harder to keep track of who changed what and no easy way to audit what is beeing used where. The solution to this problem was some kind of secrets management module, like HashiCorp Vault.
+
+%Describe the technology involved, you do not have to explain something you have
+%learned in the course, but explain any additional technology that you use in
+%the prpoject.
+
+\subsection{hiera-eyaml}
+Hiera-eyaml, also known as just eyaml, is an extension to hiera in which the user may create keypairs, and then use these key to encrypt (and decrypt) data. The purpose of eyaml is safer storage of sensitive data in common.yaml on the puppet master.
+Eyaml can be installed with:
+\begin{lstlisting}"sudo apt install hiera-eyaml"\end{lstlisting}, and then the user can get keys with the command \begin{lstlisting}"eyaml createkeys"\end{lstlisting}, which will be stored in a folder named keys. The hiera.yaml file need to be edited to support the hiera-eyaml extension and the keypairs, like this:
+
+\begin{figure}[h!]
+  \includegraphics[scale = 0.55]{images/hiera-eyaml-setup.png}
+  \caption{hiera.yaml supports hiera-eyaml with this configuration}
+\end{figure}
+
+\newpage
+
+Data, especially sensitive data, can noe be encrypted and put into common.yaml. An example is the command 'eyaml encrypt -s "this-is-something-sensitive"', which returns a PKCS7 hash under a PKI encryption \cite{pkcs}. This is pasted into the common.yaml file and replaces the plaintext sensitive data.
+
+\begin{figure}[h!]
+  \includegraphics[scale = 1]{images/common-yaml-encrypted.png}  \caption{common.yaml with encrypted sensitive data (user is a simple self-written module just for demonstration purposes in this project}
+\end{figure}
+
+\subsection{Puppet Platform 6: Deferred type}
+The Deferred type is a new type that came with Puppet Platform 6, which purpose is to retrieve sensitive data in a safer way than previous versions of Puppet did. The Deferred type, along with the Deferred function, let the puppet agent retrieve sensitive data from the compiled catalogue from the puppet master and resolve the data itself, rather than having the puppet master do it before the catalouge is sent to the puppet agent \cite{deferred}.
+Below is an example of how sensetive data can be sent using the new Deferred function:
+\\
+
+\begin{figure}[h!]
+  \includegraphics[scale = 0.5]{before.png}  \caption{Ex. Let's say myarg1 was a password, it would show up as plaintext with --debug}
+\end{figure}
+
+\\
+
+\begin{figure}[h!]
+  \includegraphics[scale = 0.5]{after.png}  \caption{Using the new Deferred type function, to protect the sensitive data}
+\end{figure}
+
+
+\subsection{HashiCorp Vault}
+Using Puppet when working is both easy and efficient, however some parts of Puppet can still be a hassel. When working with several servers, databases, etc one ofter comes across values containing keys, passwords, tokens or certificates. These are sensitive values and should not be publicly displayed. The most common method for hiding secrets in puppet is known as hiera-eyaml, as a way to encrypt secrets in a YAML file, then the decrypting them on the Puppet master while compiling. This method works fine, but the secrets will still be vulnerable during the transfer and when they are on the agent, because if a hacker can get the catalog durring the transfer, or from the cache of a puppet agent he can get the password in ether clear-text or as a hash. Before Puppet 6 was released the most common way to integrate Vault into a Puppet system was to have Vault as a hiera lookup destination so that secrets were fetched at catalog compile time, and the information fed into the normal workflows used with Puppet. The problem with this solution was that the passwords were still sent in cleartext or hashes over the network to the agents. However in puppet 6 came the Deffered function, witch made it possible to resolve the secret on the agent instead of the master. This in combination with puppet certificates to authenticate the vault to the puppetmaster gives a high degree of security.
+\\
+Say hello to Hashicorp Vault. A dedicated way to managing secrets.
+
+\section{Survey of similar projects}
+
+As security is always a high concern, there are already several existing projects aimed at improving security related to encryption/protection of sensitive data. 
+\\
+
+Puppet does actually have another type of protection for sentitive data, the Sensitive parameter. \cite{sens}
+\\
+As the name so kindly gives away, this parameter allows for some kind of protection of data deemed sensitive. 
+The way to use it is very simple, just wrap it around the data: Sensitive(value).
+Using this parameter results in the output:
+Sensitive [value redacted].
+However, this value can be unwrapped with the unwrap function, to access the original value.
+\\
+
+Another one of those projects is "My journey to securing sensitive data in Puppet code" \cite{1} by Gene Liverman
+\\
+In this short turorial Liverman gives a detailed description on how to handle sensitive data in puppet using hiera-yaml and the sensitive param in puppet.
+As a conclusion he finds out the best way is to store secrets in Hiera using hiera-eyaml, which automatically casts all values in a profile starting with "sensitive\_*" as sensitive data. This resulting in sensitive data becoming encrypted.
+
+
+\section{Description of your work}
+
+Our infrastructure is very simple, it does not contain DNS-servers, foreman-proxy, or anything other like in a real infrastructure. Instead, we chose to set up a simple Master-Agent architecture without DNS. This was done by using a OpenStack-Heat template and it's corresponding environment file, please refer to appendix A (link needed). 
+\\
+Without DNS, the /etc/hosts files on each machine was needed to be configured manually in order to be able to contact each other. On each machine, the puppet master must be written as 'ip\_adr of puppetmaster' PuppetMaster puppet so that the puppet agent nodes recognize this as the puppet master in which the catalogues will be pulled from.
+\\
+Now that the puppet master and agent can communicate with each other, we wrote a simple puppet module of our own to demonstrate sensitive data sent from the master to agent. We just called it 'user', as it only modifies a username (regular data) and a corresponding password (sensitive data) to a linux/ ubuntu user. The code can be rewview at this link: \url{https://github.com/eplejuice/Project/tree/master/user}
+\\
+In the data/common.yaml file in this module we stored the PKCS7- hash generated by Eyaml as a password/ sensitive data. As for demonstration purposes, in which you can read more about in chapter 5.1, the data from common.yaml was passed as arguments into the puppet code and then pulled from the master to a puppet agent node.
+
+\begin{figure}[h!]
+  \includegraphics[scale = 0.55]{images/user_init.png}  
+  \caption{Puppet code for init.pp The class only contain parameterized data which is passed further into modify.pp}
+\end{figure}
+
+\begin{figure}[h!]
+  \includegraphics[scale = 0.55]{images/user_modify.png}  
+  \caption{Puppet code for modify.pp This class modifies the user's name and password by fetching from the data stored in common.yaml}
+\end{figure}
+
+
+
+%Describe what you have done (or are doing), relate it the the previous work
+%you described in the previous chapter if appropriate.
+
+\section{Results and discussion}
+
+%This is the longest chapter, feel free to include some figures. Include
+%discussion of all problems you have encountered.
+
+This section is divided into two parts. First, we will demonstrate that encrypted password on the puppet master is indeed being sent over as plaintext when looking in the debug logs when running "puppet agent -t --debug".
+Secondly, we will discuss the integration of the Deferred type and Vault by HashiCorp, and how this behaves different from the hiera-eyaml approach.
+
+\subsection{Hiera-eyaml and puppet agent -t - -debug}
+Sensitive data can be securely stored as hashes in the common.yaml file on the Puppet Master. However, Puppet has a flaw when a catalogue with sensitive data is compiled and sent to a puppet agent node. This results in that the sensitive data (in our case, the password) will be viewed in full plaintext in the debug log when compiling.
+\\\\
+Have a look back on figure 2 on page 2. Here you can clearly see that user::password is stored as a PKCS7 hash. However, when we do the command "puppet agent -t --debug" on one of the puppet agents, this shows up:
+
+\begin{figure}[h!]
+  \includegraphics[scale = 0.55]{images/password_plaintext.png}  \caption{puppet agent -t --debug with a snippet of corresponding debug log}
+\end{figure}
+
+Notice the eigth line, just before the first notice message. This line shows the password in plaintext as "super\_secret\_password", not encrypted with the PKCS7 in which it was stored on the puppet master.
+\\
+However, note that this is executed locally on the puppet agent node. Nevertheless, you can see clearly see the passsword in plaintext, so we believe that this is also the state it was sent in when compiled to the puppet agent node. We have not been able to use sniffing tools, like WireShark, to see if this information could be snapped up. Theoretically this should be possible.
+\\\\
+The next subsection will discuss how this issue will be mitigated/ removed by using the Deferrend type and HashiCorp Vault as a way of storing and retrieving sensitive data.
+
+\subsection{Integration of Deferred type and HashiCorp Vault}
+
+
+\section{Security aspects}
+
+TODO:\\
+Provide a brief security analysis. Are you opening any new attack vectors? What
+are the risks? Are there sensitive data? Are clients and servers mutually
+authenticating each other? etc etc
+\\
+Write about things like these:
+\begin{enumerate}
+    \item How's the connection between Vault and the puppet agent node? Can it be attacked, like man-in-the-middle? Write some lines about this.
+    \item Write a few lines about how the security with sensitive is now with Vault integrated, compared to the approach of using eyaml and puppet agent -t - -debug. 
+\end{enumerate}
+
+\section{Conclusions}
+
+Puppet is continuously improving upon security, the upgrade from Puppet version 5 to Puppet version 6 introduced some new ways of protecting sensitive data. Such as the deferred function type, or the Hashicorp Vault integration we looked at in this report.
+
+
+
+\newpage
+\section{References}
+%\begin{enumerate}
+    %\item Deferred type and function. %\url{https://puppet.com/docs/puppet/6.0/integrating_secrets_and_retrieving_agent-size_data.html}. Accessed %on 31/10-18.
+%\end{enumerate}
+
+\bibitem{pkcs}
+PKCS.
+\textit{\url{https://en.wikipedia.org/wiki/PKCS}}.
+Accessed on 31/10-18.
+\\
+
+\bibitem{deferred}
+Deferred type and function.
+\textit{\url{https://puppet.com/docs/puppet/6.0/integrating_secrets_and_retrieving_agent-size_data.html}}.
+Accessed on 31/10-18.
+\\
+
+\bibitem{1}
+My journey to securing sensitive data in Puppet code.
+\textit{\url{https://puppet.com/blog/my-journey-securing-sensitive-data-puppet-code}}. Accessed on 02/11-18.
+\\
+
+\bibitem{sens}
+Sensitive parameter.
+\textit{\url{https://puppet.com/docs/puppet/5.5/lang\_data\_sensitive.html}}. Accessed on 02/11-18.
+\\
+
+\bibliographystyle{acmdoi}
+\bibliography{template}
+
+\clearpage
+\appendix
+
+\section{OpenStack-Heat template and environment file}
+\begin{verbatim}
+===================================================
+OpenStack-Heat template:
+===================================================
+
+    heat_template_version: 2013-05-23
+
+description: >
+  HOT template to create a new neutron network plus a router to the public
+  network, and for deploying two servers into the new network. The template also
+  assigns floating IP addresses to each server so they are routable from the
+  public network.
+parameters:
+  key_name:
+    type: string
+    description: Name of keypair to assign to servers  
+  name1:
+    type: string
+    description: name of first server
+  name2:
+    type: string
+    description: name of second server
+  name3:
+    type: string
+    description: name of the third server
+  image:
+    type: string
+    description: Name of image to use for first server
+  image2:
+   type: string 
+   description: Name of the image to use for second server  
+  image3:
+   type: string 
+   description: Name of the image to use for third server
+  flavor:
+    type: string
+    description: Flavor to use for first server
+  flavor2:
+    type: string
+    description: Flavor to use for second server
+  flavor3:
+    type: string
+    description: Flavor to use for third server
+  public_net:
+    type: string
+    description: >
+      ID or name of public network for which floating IP addresses will be allocated
+  private_net_name:
+    type: string
+    description: Name of private network to be created
+  private_net_cidr:
+    type: string
+    description: Private network address (CIDR notation)
+  private_net_gateway:
+    type: string
+    description: Private network gateway address
+  private_net_pool_start:
+    type: string
+    description: Start of private network IP address allocation pool
+  private_net_pool_end:
+    type: string
+    description: End of private network IP address allocation pool
+  security_name1:
+    type: comma_delimited_list
+    description: name of security group for server one
+  security_name2:
+    type: comma_delimited_list
+    description: name of security group for server two
+  security_name3:
+    type: comma_delimited_list
+    description: name of security group for server three
+
+
+resources:
+  private_net:
+    type: OS::Neutron::Net
+    properties:
+      name: { get_param: private_net_name }
+
+  private_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network_id: { get_resource: private_net }
+      cidr: { get_param: private_net_cidr }
+      gateway_ip: { get_param: private_net_gateway }
+      allocation_pools:
+        - start: { get_param: private_net_pool_start }
+          end: { get_param: private_net_pool_end }
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: { get_param: public_net }
+
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: router }
+      subnet_id: { get_resource: private_subnet }
+
+  server1:
+    type: OS::Nova::Server
+    properties:
+      name: {get_param: name1 }
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      key_name: { get_param: key_name }
+      networks:
+        - port: { get_resource: server1_port }
+      user_data_format: RAW
+      user_data:
+        get_file: boot_script.sh
+
+  server1_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net }
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet }
+      security_groups: { get_param: security_name1 }
+
+  server1_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_net }
+      port_id: { get_resource: server1_port }
+
+  server2:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: name2 }
+      image: { get_param: image2 }
+      flavor: { get_param: flavor2 }
+      key_name: { get_param: key_name }
+      networks:
+        - port: { get_resource: server2_port }
+      user_data_format: RAW
+      user_data:
+        get_file: boot_script.sh
+
+  server2_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net }
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet }
+      security_groups: {get_param: security_name2 }
+
+  server2_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_net }
+      port_id: { get_resource: server2_port }
+
+  server3:
+    type: OS::Nova::Server
+    properties:
+      name: { get_param: name3 }
+      image: { get_param: image3 }
+      flavor: { get_param: flavor3 }
+      key_name: { get_param: key_name }
+      networks:
+        - port: { get_resource: server3_port }
+      user_data_format: RAW
+      user_data:
+        get_file: boot_script.sh
+
+  server3_port:
+    type: OS::Neutron::Port
+    properties:
+      network_id: { get_resource: private_net }
+      fixed_ips:
+        - subnet_id: { get_resource: private_subnet }
+      security_groups: {get_param: security_name3 }
+
+  server3_floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: public_net }
+      port_id: { get_resource: server3_port }
+
+outputs:
+  server1_private_ip:
+    description: IP address of server1 in private network
+    value: { get_attr: [ server1, first_address ] }
+  server1_public_ip:
+    description: Floating IP address of server1 in public network
+    value: { get_attr: [ server1_floating_ip, floating_ip_address ] }
+  server2_private_ip:
+    description: IP address of server2 in private network
+    value: { get_attr: [ server2, first_address ] }
+  server2_public_ip:
+    description: Floating IP address of server2 in public network
+    value: { get_attr: [ server2_floating_ip, floating_ip_address ] }
+  server3_private_ip:
+    description: IP address of server3 in private network
+    value: { get_attr: [ server3, first_address ] }
+  server3_public_ip:
+    description: Floating IP address of server3 in public network
+    value: { get_attr: [ server3_floating_ip, floating_ip_address ] }
+\end{verbatim}
+\\\\
+\begin{verbatim}
+
+===================================================
+OpenStack-Heat environment file:
+===================================================
+    parameters:
+  key_name: KEY_NAME
+  security_name1:
+    - linux
+    - default
+  security_name2: 
+    - linux
+    - default
+  security_name3:
+    - linux
+    - default
+  name1: Puppet5
+  name2: Puppet6
+  name3: PuppetMaster
+  image: Ubuntu Server 18.04 LTS (Bionic Beaver) amd64
+  image2: Ubuntu Server 18.04 LTS (Bionic Beaver) amd64
+  image3: Ubuntu Server 18.04 LTS (Bionic Beaver) amd64
+  flavor: m1.medium
+  flavor2: m1.medium
+  flavor3: m1.medium
+  public_net: ntnu-internal
+  private_net_name: net1
+  private_net_cidr: 192.168.100.0/24
+  private_net_gateway: 192.168.100.1
+  private_net_pool_start: 192.168.100.200
+  private_net_pool_end: 192.168.100.250
+  
+===================================================
+\end{verbatim}
+
+%\section{Code}
+
+%\begin{verbatim}
+%# this is just the verbatim environment, really should use
+%# a proper code environement
+
+%class profile::base_linux {
+
+ % $linux_sw_pkg = hiera('base_linux::linux_sw_pkg')
+
+%# careful when configuring ntp to avoid misuse (opening for DDOS)
+
+ % class { 'ntp':
+ %   servers   => [ 'ntp.hig.no' ],
+ %   restrict  => [
+ %     'default kod nomodify notrap nopeer noquery',
+ %     '-6 default kod nomodify notrap nopeer noquery',
+ %   ],
+ % }
+ % class { 'timezone':
+ %   timezone => 'Europe/Oslo',
+ % }
+%
+ % package { $linux_sw_pkg:
+ %   ensure => latest,
+ % }
+%
+%}
+%\end{verbatim}
+
+\end{document}
